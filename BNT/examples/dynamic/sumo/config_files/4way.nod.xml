@@ -1,0 +1,25 @@
+<!-- Describe the nodes of the road network -->
+<nodes>
+	<node id="1" x="200.0" y="0.0" />
+	<node id="2" x="400.0" y="200.0" />
+	<node id="3" x="200.0" y="400.0" />
+	<node id="4" x="0.0" y="200.0" />
+	<!-- node id="5" x="100.0" y="100.0" /-->
+	<node id="101" x="200.0" y="195.0" />
+	<node id="102" x="205.0" y="200.0" />
+	<node id="103" x="200.0" y="205.0" />
+	<node id="104" x="195.0" y="200.0" />
+</nodes>
+
+ <!--&lt;!&ndash;Describe the nodes of the road network &ndash;&gt;-->
+<!--<nodes>-->
+	<!--<node id="1" x="100.0" y="0.0" />-->
+	<!--<node id="2" x="1100.0" y="1000.0" />-->
+	<!--<node id="3" x="100.0" y="2000.0" />-->
+	<!--<node id="4" x="0.0" y="1000.0" />-->
+	<!--&lt;!&ndash; node id="5" x="100.0" y="100.0" /&ndash;&gt;-->
+	<!--<node id="101" x="100.0" y="995.0" />-->
+	<!--<node id="102" x="105.0" y="1000.0" />-->
+	<!--<node id="103" x="100.0" y="1005.0" />-->
+	<!--<node id="104" x="95.0" y="1000.0" />-->
+<!--</nodes>-->

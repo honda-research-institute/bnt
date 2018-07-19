@@ -1,0 +1,11 @@
+<routes>
+     <vTypeDistribution id="typedist1">
+        <vType accel="0.5" decel="1.0" id="Car1" length="2.0" speedFactor="normc(1,0.1,0.7,1.5)" sigma="0.0" probability="0.35"/>
+        <vType accel="1.0" decel="2.0" id="Car2" length="2.0" speedFactor="normc(1,0.1,0.7,1.5)" sigma="0.0" probability="0.5"/>
+        <vType accel="2.0" decel="4.0" id="Car3" length="2.0" speedFactor="normc(1,0.1,0.7,1.5)" sigma="0.0" probability="0.1"/>
+        <vType accel="3.0" decel="6.0" id="Car4" length="2.0" speedFactor="normc(1,0.1,0.7,1.5)" sigma="0.0" probability="0.05"/>
+    </vTypeDistribution>
+    <!--<vType accel="2.0" decel="4.0" id="Car" length="2.0" speedFactor="normc(1,0.1,0.7,1.5)" sigma="0.0"/>-->
+    <route id="route0" edges="4to104 104to101 101to1"/>
+    <vehicle depart="1" departSpeed="random" departPosLat="random" id="veh0" route="route0" type="typedist1"/>
+</routes>

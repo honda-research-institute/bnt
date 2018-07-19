@@ -1,4 +1,4 @@
- Example due to Wang Hee Lin" <engp1622@nus.edu.sg
+%  Example due to Wang Hee Lin" <engp1622@nus.edu.sg
 
 
 intra = zeros(2);

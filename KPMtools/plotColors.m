@@ -1,4 +1,4 @@
-function styles =  plotColors()
+function [styles, colors, symbols] =  plotColors()
 
 colors =  ['r' 'b' 'k' 'g' 'c' 'y' 'm' ...
 	   'r' 'b' 'k' 'g' 'c' 'y' 'm'];

@@ -21,4 +21,5 @@ engine = {};
 engine{end+1} = filter_engine(hmm_2TBN_inf_engine(bnet));
 engine{end+1} = filter_engine(jtree_2TBN_inf_engine(bnet));
 
-time = cmp_online_inference(bnet, engine, T);
+[time, engine]  = cmp_online_inference(bnet, engine, T);
+
