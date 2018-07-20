@@ -1,5 +1,5 @@
 clear all;
-% close all;
+close all;
 clc;
 % Make an HMM with discrete observations
 % X1 -> X2
