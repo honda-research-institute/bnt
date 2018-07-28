@@ -5,27 +5,30 @@ clc;
 rng(50,'twister');
 
 % read reference trajectories
-ref_data_left = csvread('sumo/ref_trajectory_left_turn.csv', 1, 0);
-ref_data_straight = csvread('sumo/ref_trajectory_straight.csv', 1, 0);
-ref_data_right = csvread('sumo/ref_trajectory_right_turn.csv', 1, 0);
+ref_data_straight = readtable('~/repo/ngsim/csv/lankershim_207_mean.csv');
+ref_data_right = readtable('~/repo/ngsim/csv/lankershim_208_mean.csv');
 
-% Read and process the data from SUMO (training data and the corresponding labels)
+ref_data_straight = [ref_data_straight.Global_X ref_data_straight.Global_Y] .* 0.3048;
+ref_data_right = [ref_data_right.Global_X ref_data_right.Global_Y] .* 0.3048;
+
+% Read and process the data from NGSIM (training data and the corresponding labels)
 num_features = 8;
 num_input_feature = 8;
-num_intents = 3;
-input_data = csvread('sumo/30/data_truth_1000.csv');
-input_label= csvread('sumo/30/label_1000.csv');
+num_intents = 2;
 
-merge_labels = 1;
-X = num_intents * 3;
-if merge_labels
-    X = 6;
-end
-[obs_data, hidden_data, hidden_data_overall] = process_data(input_data, input_label, num_input_feature, merge_labels);
+input_data = readtable('~/repo/ngsim/csv/lankershim_filt.csv');
+input_data = [input_data.Vehicle_ID input_data.D_Zone input_data.Global_X input_data.Global_Y input_data.v_Vel input_data.v_Acc];
+input_data(:,3:end) = input_data(:,3:end) .* 0.3048;
 
+merge_labels = 0;
+X = num_intents * 2;
+
+[obs_data, hidden_data, hidden_data_overall] = process_data(input_data, num_input_feature);
+
+ 
 % split the data to training and test set
-train_size = 800;
-test_size = 200;
+train_size = 107;
+test_size = 27;
 obs_data_train = obs_data(1:train_size);
 hidden_data_train = hidden_data(1:train_size);
 hidden_data_train_overall = hidden_data_overall(1,1:train_size);
@@ -33,18 +36,26 @@ obs_data_test = obs_data(train_size+1:train_size + test_size);
 hidden_data_test = hidden_data(train_size+1:train_size + test_size);
 hidden_data_test_overall = hidden_data_overall(1,train_size+1:train_size+test_size);
 
+input_data = readtable('~/repo/ngsim/csv/selected_207.csv');
+input_data1 = [input_data.Vehicle_ID input_data.D_Zone input_data.Global_X input_data.Global_Y input_data.v_Vel input_data.v_Acc];
+input_data = readtable('~/repo/ngsim/csv/selected_208.csv');
+input_data2 = [input_data.Vehicle_ID input_data.D_Zone input_data.Global_X input_data.Global_Y input_data.v_Vel input_data.v_Acc];
+input_data_test = [input_data1; input_data2] ;
+input_data_test(:,3:end) = input_data_test(:,3:end) .* 0.3048;
+[obs_data_test, hidden_data_test, hidden_data_test_overall] = process_data(input_data_test, num_input_feature);
+
 % learn the parameters of HMM using Maximum Likelihood
 [initState, transmat, mu, Sigma] = gausshmm_train_observed(obs_data_train, hidden_data_train, X);
 
 % Number of mixtures
-M = 20;
+M = 4;
 
 Sigma0 = repmat(eye(num_features), [1 1 X M]);
 mu0 = rand(num_features, X, M);
 mixmat0 = mk_stochastic(rand(X,M));
 
 for i=1:M
-    mu0(:,:,i)= mu0(:,:,i) + mu; 
+    mu0(:,:,i) = mu ;%+ mu0(:,:,i);
     Sigma0(:,:,:,i)= Sigma ;
   
 end
@@ -63,10 +74,10 @@ hnodes = [1]; %ysetdiff(1:ss, onodes);
 [ref, predicted_intent, overall_intent, resolve_point, probs] = ...
     inference(engine, ss, onodes, hnodes, obs_data_test, hidden_data_test, merge_labels);
 
-cnf_sub_intents =  zeros(X,X);
-for i=1:test_size
-    cnf_sub_intents = cnf_sub_intents + confusionmat(ref{i},predicted_intent{i}(2,:), 'Order',1:X);
-end
+% cnf_sub_intents =  zeros(X,X);
+% for i=1:test_size
+%     cnf_sub_intents = cnf_sub_intents + confusionmat(ref{i},predicted_intent{i}(2,:), 'Order',1:X);
+% end
 
 cnf_overall_intents =   confusionmat(hidden_data_test_overall, overall_intent, 'Order',1:num_intents); 
 figure;
@@ -76,68 +87,57 @@ title('Truth');
 subplot(2,1,2);
 prediction = imagesc(overall_intent);
 title('Prediction');
-plot_cnf(cnf_sub_intents, X, 1)
+% plot_cnf(cnf_sub_intents, X, 1)
 plot_cnf(cnf_overall_intents, num_intents, 1)
-plot_resolve(resolve_point, overall_intent, ref_data_left, ref_data_straight, ref_data_right)
+plot_resolve(resolve_point, overall_intent, ref_data_straight, ref_data_right)
 
 
-function [obs_data, hidden_data, hidden_data_overall] = process_data(input_data, input_label, num_features, merge_labels)
-obs_data = cell(1,size(input_data,1));
-hidden_data = cell(1,size(input_data,1));
-hidden_data_overall = zeros(1,size(input_data,1));
-for i=1:size(input_data,1)
-    time_index = 1;
-    for j=1:num_features:size(input_data,2)
-        if ~all(input_data(i, j:j+num_features-1) == 0)
-            obs_data{i}(1:num_features, time_index) = input_data(i, j:j+num_features-1);
-%             feat_vector = input_data(i, j:j+num_features-1);
-% %             vx = feat_vector(1,3) * cos(feat_vector(1,4));
-% %             vy = feat_vector(1,3) * sin(feat_vector(1,4));
-% %             feat_vector = [feat_vector(1,1), feat_vector(1,2), vx, vy, feat_vector(1,4)];
-%             feat_vector = [feat_vector(1,1:4), feat_vector(1,7)];
-%             obs_data{i}(1:length(feat_vector), time_index) = feat_vector;
-            if merge_labels
-                % right
-                if input_label(i, time_index)==7
-                    hidden_data{i}(1, time_index) = 1;
-                    
-                elseif input_label(i, time_index)== 8 || input_label(i, time_index)== 9
-                    hidden_data{i}(1, time_index) = input_label(i, time_index) - 3;      
-               
-                % straight
-                elseif  input_label(i, time_index)== 4 || input_label(i, time_index)== 5 || input_label(i, time_index)== 6  
-                    hidden_data{i}(1, time_index) = 4;
-               
-                % left
-                else
-                    hidden_data{i}(1, time_index) = input_label(i, time_index);
-                end
-            else
-                hidden_data{i}(1, time_index) = input_label(i, time_index);
-            end
-            time_index = time_index + 1;
-        else
-            break
-        end
-    end
-    if merge_labels
-        if hidden_data{i}(1,end) == 3
-            hidden_data_overall(1,i) = 1;
-        elseif  hidden_data{i}(1,end) == 4
-            hidden_data_overall(1,i) = 2;
-        else
-            hidden_data_overall(1,i) = 3;
-        end
+function [obs_data, hidden_data, hidden_data_overall] = process_data(input_data, num_features)
+center_x = 6452440.881 * 0.3048;
+center_y = (1874188.179 +(1874259.679-1874188.179)/2) * 0.3048;
+y_sublabel = 1874161.679 * 0.3048 - center_y ;
+
+veh_IDs = unique(input_data(:,1));
+num_cases = length(veh_IDs);
+obs_data = cell(1,num_cases);
+hidden_data = cell(1,num_cases);
+hidden_data_overall = zeros(1,num_cases);
+for i=1:num_cases
+    obs = input_data(find(input_data(:,1) == veh_IDs(i,1)), :);
+    hidden_data_overall(1,i) =  -(obs(1,2) - 209);
+
+    obs = obs(:, 3:end)';
+    obs = obs(:, find(obs(2,:) > (1874161.679*.3048-15)));
+    obs = obs(:, find(obs(2,:) < (1874267.679*.3048)));
+    obs = obs(:, find(obs(1,:) < (6452520.881*.3048)));
+    obs(1,:) = obs(1,:) - center_x;
+    obs(2,:) = obs(2,:) - center_y;
+%     x = obs(1,:) - center_x;
+%     y = obs(2,:) - center_y;
+%     obs(1,:) = y;
+%     obs(2,:) = -1 * x;
+    dx = zeros(1, size(obs,2));
+    dx(1,2:end) = obs(1, 2:end) - obs(1,1:end-1 );
+    dy = zeros(1, size(obs,2));
+    dy(1,2:end) = obs(2, 2:end) - obs(2,1:end-1 );
+    angle = atan2(dy, dx);
+    vx = obs(3,:) .* cos (angle);
+    vy = obs(3,:) .* sin (angle);
+    yaw = zeros(1, size(obs,2));
+    yaw (1, 2:end) = (angle(1,2:end) - angle(1,1:end-1)) / 0.1;
+    obs = [obs(1,:); obs(2,:); vx; vy; obs(3,:); obs(4,:); angle; yaw];
+    obs_data{i} = obs;    
+    if hidden_data_overall(1,i) == 1
+        LS_ind = find(obs(2, :) >= y_sublabel);
+        labels = ones(1,size(obs,2));
+        labels(1, LS_ind) = 2;
+        hidden_data{i} = labels;
     else
-        if hidden_data{i}(1,end) == 3
-            hidden_data_overall(1,i) = 1;
-        elseif  hidden_data{i}(1,end) == 6
-            hidden_data_overall(1,i) = 2;
-        else
-            hidden_data_overall(1,i) = 3;
-        end
+        LR_ind = find(obs(2, :) >= y_sublabel);
+        labels = 3 .* ones(1, size(obs,2));
+        labels(1, LR_ind) = 4;
+        hidden_data{i} = labels;
     end
-    
 end
 end
 
@@ -151,7 +151,7 @@ function bnet = build_HMM(num_features, X, ss, onodes)
 % continuous observed ([x, y, v, psi]) nodes
 intra = zeros(ss);
 intra(1,2) = 1;
-inter = zeros(ss);sefaresh
+inter = zeros(ss);
 inter(1,1) = 1;
 Y = num_features; % num observable symbols
 ns = [X Y];
@@ -216,13 +216,11 @@ probs = cell(1,test_size);
 ref=cell(1,test_size);
 threshold = 0.95;
 wait_T = 5;
-l_index = 2;
-s_index = 5;
-r_index = 8;
-if merge_labels
-    s_index = 4;
-    r_index = 5;
-end
+
+% l_index = 2;
+s_index = 2;
+r_index = 4;
+
 % do online ineference for each instance, at each given timestamp
 for i=1:test_size
     i
@@ -237,18 +235,13 @@ for i=1:test_size
         [ma,in]= max(probs{i}(:,t));
         predicted_intent{i}(1:2,t) = [ma,in];
         if t >= wait_T+1 && resolve_point(1,i) == 0
-            if all(probs{i}(l_index,t-wait_T:t) >= threshold) %|| all(probs{i}(l_index-1,t-wait_T:t) >= threshold)
+            if all(probs{i}(s_index,t-wait_T:t) >= threshold) || all(probs{i}(s_index-1,t-wait_T:t) >= threshold)
                 overall_intent(1,i) = 1;
                 resolve_point(1,i) = t;
                 resolve_point(2,i) = obs_data_test{i}(1,t);
                 resolve_point(3,i) = obs_data_test{i}(2,t);
-            elseif all(probs{i}(s_index,t-wait_T:t) >= threshold) %|| all(probs{i}(s_index-1,t-wait_T:t) >= threshold)
+            elseif all(probs{i}(r_index,t-wait_T:t) >= threshold) || all(probs{i}(r_index-1,t-wait_T:t) >= threshold)
                 overall_intent(1,i) = 2;
-                resolve_point(1,i) = t;
-                resolve_point(2,i) = obs_data_test{i}(1,t);
-                resolve_point(3,i) = obs_data_test{i}(2,t);
-            elseif all(probs{i}(r_index,t-wait_T:t) >= threshold) %|| all(probs{i}(r_index-1,t-wait_T:t) >= threshold)
-                overall_intent(1,i) = 3;
                 resolve_point(1,i) = t;
                 resolve_point(2,i) = obs_data_test{i}(1,t);
                 resolve_point(3,i) = obs_data_test{i}(2,t);
@@ -263,24 +256,24 @@ for i=1:test_size
 end
 end
 
-function plot_resolve(resolve_point, overall_intent, ref_data_left, ref_data_straight, ref_data_right)
+function plot_resolve(resolve_point, overall_intent, ref_data_straight, ref_data_right)
 figure;
 hold on
-plot(ref_data_left(:,1), ref_data_left(:,2),'-k')
 plot(ref_data_straight(:,1), ref_data_straight(:,2),'-k')
 plot(ref_data_right(:,1), ref_data_right(:,2),'-k')
+center_x = 6452440.881 * 0.3048;
+center_y = (1874188.179 +(1874259.679-1874188.179)/2) * 0.3048;
 for i=1:size(resolve_point,2)
     
     if overall_intent(1,i)==1
-        plot(resolve_point(2, i)+200, resolve_point(3,i)+200, 'rx')
+        plot(resolve_point(2, i)+center_x, resolve_point(3,i)+center_y, 'rx')
     elseif overall_intent(1,i)==2
-        plot(resolve_point(2, i)+200, resolve_point(3,i)+200, 'bs')
-    else
-        plot(resolve_point(2, i)+200, resolve_point(3,i)+200, 'go')
+        plot(resolve_point(2, i)+center_x, resolve_point(3,i)+center_y, 'bs')
     end
 end
-xlim([0, 400])
-ylim([0, 400])
+% xlim([0, 400])
+% ylim([0, 400])
+axis equal
 legend
 hold off
 end
