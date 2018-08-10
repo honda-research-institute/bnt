@@ -1,5 +1,5 @@
 clear all;
-% close all;
+close all;
 clc;
 
 rng(50,'twister');
@@ -37,13 +37,13 @@ hidden_data_test_overall = hidden_data_overall(1,train_size+1:train_size+test_si
 [initState, transmat, mu, Sigma] = gausshmm_train_observed(obs_data_train, hidden_data_train, X);
 
 % Number of mixtures
-M = 20;
+M = 4;
 
 Sigma0 = repmat(eye(num_features), [1 1 X M]);
 mu0 = rand(num_features, X, M);
 mixmat0 = mk_stochastic(rand(X,M));
 
-for i=1:M
+for i=1:num_intents
     mu0(:,:,i)= mu0(:,:,i) + mu; 
     Sigma0(:,:,:,i)= Sigma ;
   
@@ -63,6 +63,7 @@ hnodes = [1]; %ysetdiff(1:ss, onodes);
 [ref, predicted_intent, overall_intent, resolve_point, probs] = ...
     inference(engine, ss, onodes, hnodes, obs_data_test, hidden_data_test, merge_labels);
 
+% evaluation
 cnf_sub_intents =  zeros(X,X);
 for i=1:test_size
     cnf_sub_intents = cnf_sub_intents + confusionmat(ref{i},predicted_intent{i}(2,:), 'Order',1:X);
